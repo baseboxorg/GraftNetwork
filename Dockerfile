@@ -57,10 +57,39 @@ RUN curl -s -O https://ftp.gnu.org/gnu/readline/readline-${READLINE_VERSION}.tar
     && CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure \
     && make \
     && make install
-    
+
 WORKDIR /src
 COPY . .
 
 ARG NPROC
 RUN rm -rf build && \
     if [ -z "$NPROC" ];then make -j$(nproc) release-static;else make -j$NPROC release-static;fi
+
+# runtime stage
+FROM ubuntu:16.04
+
+RUN apt-get update && \
+    apt-get --no-install-recommends --yes install ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt
+
+COPY --from=builder /src/build/release/bin/* /usr/local/bin/
+
+# Contains the blockchain
+VOLUME /root/.graft
+
+# Generate your wallet via accessing the container and run:
+# cd /wallet
+# graft-wallet-cli
+VOLUME /wallet
+
+ENV LOG_LEVEL 0
+ENV P2P_BIND_IP 0.0.0.0
+ENV P2P_BIND_PORT 18080
+ENV RPC_BIND_IP 127.0.0.1
+ENV RPC_BIND_PORT 18081
+
+EXPOSE 18080
+EXPOSE 18081
+
+CMD graftnoded --log-level=$LOG_LEVEL --p2p-bind-ip=$P2P_BIND_IP --p2p-bind-port=$P2P_BIND_PORT --rpc-bind-ip=$RPC_BIND_IP --rpc-bind-port=$RPC_BIND_PORT
